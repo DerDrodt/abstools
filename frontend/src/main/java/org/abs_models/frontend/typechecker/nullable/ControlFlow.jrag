@@ -9,15 +9,16 @@ aspect ControlFlow {
 	Stmt implements CFGNode;
 	Exp implements CFGNode;
 	CaseBranchStmt implements CFGNode;
+	VarDecl implements CFGNode;
 
 	//== Entry / Exit ==
 	
 	syn nta Stmt MethodImpl.entry() = new SkipStmt();
 	syn nta Stmt MethodImpl.exit() = new SkipStmt();
 
-	eq MethodImpl.entry().following() = new SimpleSet<Stmt>(getBlock());
-	eq MethodImpl.getBlock().following() = new SimpleSet<Stmt>(exit());
-	eq MethodImpl.exit().following() = new SimpleSet<Stmt>();
+	eq MethodImpl.entry().following() = new SimpleSet<CFGNode>(getBlock());
+	eq MethodImpl.getBlock().following() = new SimpleSet<CFGNode>(exit());
+	eq MethodImpl.exit().following() = new SimpleSet<CFGNode>();
 	
 	inh Stmt Stmt.exit();
 	eq MethodImpl.getBlock().exit() = exit();
@@ -25,15 +26,90 @@ aspect ControlFlow {
 	eq MethodImpl.exit().exit() = null;
 
 	//== Predecessors ==
-	
-	coll SimpleSet<Stmt> Stmt.pred() with add root MethodImpl;
-	Stmt contributes this to Stmt.pred() for each succ();
+	coll SimpleSet<CFGNode> CFGNode.pred() with add root MethodImpl;
+	// Stmt contributes this to CFGNode.pred() for each succ();
+
+	// Do this manually because of a bug in JastAdd
+	protected void Stmt.collect_contributors_CFGNode_pred(MethodImpl _root, java.util.Map<ASTNode, java.util.Set<ASTNode>> _map) {
+    for (CFGNode target : (Iterable<? extends CFGNode>) (succ())) {
+      ASTNode _targetRoot = (ASTNode) target;
+      ASTNode _targetParent = (ASTNode) target;
+      while (_targetParent != null) {
+        _targetParent = _targetParent.getParent();
+        if (_targetParent instanceof MethodImpl) {
+          _targetRoot = _targetParent;
+        }
+      }
+      ASTNode _sourceRoot = _root;
+      ASTNode _sourceParent = _root;
+      while (_sourceParent != null) {
+        _sourceParent = _sourceParent.getParent();
+        if (_sourceParent instanceof MethodImpl) {
+          _sourceRoot = _sourceParent;
+        }
+      }
+      if (_targetRoot != _sourceRoot) {
+        throw new RuntimeException("Contribution source and target do not share a common collection "
+            + "root node for collection attribute CFGNode.pred().");
+      }
+      java.util.Set<ASTNode> contributors = _map.get(target);
+      if (contributors == null) {
+        contributors = new java.util.LinkedHashSet<ASTNode>();
+        _map.put((ASTNode) target, contributors);
+      }
+      contributors.add(this);
+    }
+    super.collect_contributors_CFGNode_pred(_root, _map);
+  }
+
+	protected void Stmt.contributeTo_CFGNode_pred(SimpleSet<CFGNode> collection) {
+    super.contributeTo_CFGNode_pred(collection);
+    collection.add(this);
+  }
+
+	// Do this manually because of a bug in JastAdd
+	protected void Exp.collect_contributors_CFGNode_pred(MethodImpl _root, java.util.Map<ASTNode, java.util.Set<ASTNode>> _map) {
+    for (CFGNode target : (Iterable<? extends CFGNode>) (succ())) {
+      ASTNode _targetRoot = (ASTNode) target;
+      ASTNode _targetParent = (ASTNode) target;
+      while (_targetParent != null) {
+        _targetParent = _targetParent.getParent();
+        if (_targetParent instanceof MethodImpl) {
+          _targetRoot = _targetParent;
+        }
+      }
+      ASTNode _sourceRoot = _root;
+      ASTNode _sourceParent = _root;
+      while (_sourceParent != null) {
+        _sourceParent = _sourceParent.getParent();
+        if (_sourceParent instanceof MethodImpl) {
+          _sourceRoot = _sourceParent;
+        }
+      }
+      if (_targetRoot != _sourceRoot) {
+        throw new RuntimeException("Contribution source and target do not share a common collection "
+            + "root node for collection attribute CFGNode.pred().");
+      }
+      java.util.Set<ASTNode> contributors = _map.get(target);
+      if (contributors == null) {
+        contributors = new java.util.LinkedHashSet<ASTNode>();
+        _map.put((ASTNode) target, contributors);
+      }
+      contributors.add(this);
+    }
+    super.collect_contributors_CFGNode_pred(_root, _map);
+  }
+
+	protected void Exp.contributeTo_CFGNode_pred(SimpleSet<CFGNode> collection) {
+    super.contributeTo_CFGNode_pred(collection);
+    collection.add(this);
+  }
 
 	// NTAs are not, in general, included in the collection attribute traversal; we have to fudge around this
-  protected void MethodImpl.collect_contributors_Stmt_pred(MethodImpl _root, java.util.Map<ASTNode, java.util.Set<ASTNode>> _map) {
-  	entry().collect_contributors_Stmt_pred(_root, _map);
-  	exit().collect_contributors_Stmt_pred(_root, _map);
-  	super.collect_contributors_Stmt_pred(_root, _map);
+  protected void MethodImpl.collect_contributors_CFGNode_pred(MethodImpl _root, java.util.Map<ASTNode, java.util.Set<ASTNode>> _map) {
+  	entry().collect_contributors_CFGNode_pred(_root, _map);
+  	exit().collect_contributors_CFGNode_pred(_root, _map);
+  	super.collect_contributors_CFGNode_pred(_root, _map);
   }
 
 	//== Successors ==
@@ -43,82 +119,150 @@ aspect ControlFlow {
 	/**
 	 * All possible Statements that could follow this one
 	 */
-	syn SimpleSet<Stmt> Stmt.succ() = following();
+	syn SimpleSet<CFGNode> CFGNode.succ();
+	eq Stmt.succ() = following();
+	eq Exp.succ() = following();
+	eq CaseBranchStmt.succ() = following();
+	
 	/**
 	 * The next statement in the AST
 	 */
-	inh SimpleSet<Stmt> Stmt.following();
+	inh SimpleSet<CFGNode> CFGNode.following();
+	inh SimpleSet<CFGNode> Exp.followingWhenTrue();
+	inh SimpleSet<CFGNode> Exp.followingWhenFalse();
+	eq Model.getChild(int i).followingWhenTrue() = new SimpleSet<CFGNode>();
+	eq Model.getChild(int i).followingWhenFalse() = new SimpleSet<CFGNode>();
+
+	// Make sure all Exps have a value for following
+	inh SimpleSet<CFGNode> MethodSig.following();
+	eq MethodImpl.getMethodSig().following() = new SimpleSet<CFGNode>(getBlock());
 
 	// TODO: AssertStmt
 
+	eq AssignStmt.succ() = new SimpleSet<CFGNode>(getValue());
+	eq AssignStmt.getValue().following() = following();
+
+	// TODO: AwaitStmt
+
 	eq Block.succ() = getNumStmt() != 0
-		? SimpleSet.<Stmt>empty().union(getStmt(0)) 
+		? SimpleSet.<CFGNode>empty().union(getStmt(0)) 
 		: following();
 	eq Block.getStmt(int i).following() = i != getNumStmt() - 1
-		? SimpleSet.<Stmt>empty().union(getStmt(i+1))
+		? SimpleSet.<CFGNode>empty().union(getStmt(i+1))
 		: following();
 
 	
-	// TODO: A more granular control flow cannot be modelled right now, because we would need a common interface for Stmt/Exp/CaseBranchStmt(/Pattern)
-	// That currently results in an error in the generated code, but maybe I'm doing it wrong?
+	// TODO: Redo
 	inh CaseStmt CaseBranchStmt.parentCase();
 	eq CaseStmt.getBranch(int i).parentCase() = this;
 	eq CaseBranchStmt.getRight().following() = parentCase().following();
 
 	// TODO: What is a DieStmt?
 
+	// TODO: DurationStmt?
+
+	eq ExpressionStmt.succ() = new SimpleSet<CFGNode>(getExp());
+	eq ExpressionStmt.getExp().following() = following();
+
 	// TODO: ForeachStmt
 
-	eq IfStmt.succ() = hasElse()
-		? SimpleSet.<Stmt>empty().union(getThen()).union(getElse())
-		: following().union(getThen());
+	eq IfStmt.succ() = new SimpleSet<CFGNode>(getCondition());
+	eq IfStmt.getCondition().followingWhenTrue() = new SimpleSet<CFGNode>(getThen());
+	eq IfStmt.getCondition().followingWhenFalse() = hasElse()
+		? new SimpleSet<CFGNode>(getElse())
+		: following();
+	eq IfStmt.getCondition().following() = 
+    getCondition().followingWhenTrue().union(getCondition().followingWhenFalse());
 
 	// TODO: What is a MoveCogToStmt?
 
 	// ReturnStmt does not need extra handling. It has to be the last stmt
+	eq ReturnStmt.succ() = new SimpleSet<CFGNode>(getRetExp());
+	eq ReturnStmt.getRetExp().following() = following();
 
 	// TODO: ThrowStmt
 
 	// TODO: TryCatchFinally
 	eq TryCatchFinallyStmt.getBody().following() = hasFinally()
-		? new SimpleSet<Stmt>(getFinally())
+		? new SimpleSet<CFGNode>(getFinally())
 		: following();
 	eq TryCatchFinallyStmt.getFinally().following() = following();
 
-	eq WhileStmt.succ() = following().union(getBody());
-	eq WhileStmt.getBody().following() = SimpleSet.<Stmt>empty().union(this);
+	eq VarDeclStmt.succ() = new SimpleSet<CFGNode>(getVarDecl());
+	eq VarDeclStmt.getVarDecl().following() = following();
+	eq VarDecl.succ() = hasInitExp()
+		? new SimpleSet<CFGNode>(getInitExp())
+		: following();
 
-	inh Stmt Exp.parentStmt();
+	eq WhileStmt.succ() = new SimpleSet<CFGNode>(getCondition());
+	eq WhileStmt.getCondition().followingWhenTrue() = new SimpleSet<CFGNode>(getBody());
+	eq WhileStmt.getCondition().followingWhenFalse() = following();
+	eq WhileStmt.getCondition().following() = 
+    getCondition().followingWhenTrue().union(getCondition().followingWhenFalse());
+	eq WhileStmt.getBody().following() = new SimpleSet<CFGNode>(getCondition());
 
-	eq AssertStmt.getCondition().parentStmt() = this;
+	eq Call.succ() = new SimpleSet<CFGNode>(getCallee());
+	eq Call.getCallee().following() = hasParam()
+		? new SimpleSet<CFGNode>(getParam(0))
+		: following();
+	eq Call.getParam(int i).following() = i + 1 < getNumParam()
+		? new SimpleSet<CFGNode>(getParam(i + 1))
+		: following();
 
-	eq AssignStmt.getVar().parentStmt() = this;
-	eq AssignStmt.getValue().parentStmt() = this;
+	eq GetExp.succ() = new SimpleSet<CFGNode>(getPureExp());
 
-	// TODO: await
+	eq NewExp.succ() = hasParam()
+		? new SimpleSet<CFGNode>(getParam(0))
+		: following();
+	eq NewExp.getParam(int i).following() = i + 1 < getNumParam()
+		? new SimpleSet<CFGNode>(getParam(i + 1))
+		: following();
 
-	eq CaseStmt.getExpr().parentStmt() = this;
-	// TODO: Handle patterns
+	eq OriginalCall.succ() = hasParam()
+		? new SimpleSet<CFGNode>(getParam(0))
+		: following();
+	eq OriginalCall.getParam(int i).following() = i + 1 < getNumParam()
+		? new SimpleSet<CFGNode>(getParam(i + 1))
+		: following();
 
-	eq DieStmt.getReason().parentStmt() = this;
+	eq AsExp.succ() = new SimpleSet<CFGNode>(getExp());
+	eq AsExp.getExp().following() = new SimpleSet<CFGNode>(getInterfaceTypeUse());
 
-	eq DurationStmt.getMin().parentStmt() = this;
-	eq DurationStmt.getMax().parentStmt() = this;
+	// TODO: Handle Short Circuit
+	eq Binary.succ() = new SimpleSet<CFGNode>(getLeft());
+	eq Binary.getLeft().following() = new SimpleSet<CFGNode>(getRight());
 
-	eq ExpressionStmt.getExp().parentStmt() = this;
+	// TODO: CaseExp
 
-	eq ForeachStmt.getListExp().parentStmt() = this;
+	eq DataConstructorExp.succ() = hasParam()
+		? new SimpleSet<CFGNode>(getParam(0))
+		: following();
+	eq DataConstructorExp.getParam(int i).following() = i + 1 < getNumParam()
+		? new SimpleSet<CFGNode>(getParam(i + 1))
+		: following();
 
-	eq IfStmt.getCondition().parentStmt() = this;
+	eq FnApp.succ() = hasParam()
+		? new SimpleSet<CFGNode>(getParam(0))
+		: following();
+	eq FnApp.getParam(int i).following() = i + 1 < getNumParam()
+		? new SimpleSet<CFGNode>(getParam(i + 1))
+		: following();
 
-	eq MoveCogToStmt.getTarget().parentStmt() = this;
+	// TODO: IfExp
 
-	eq ReturnStmt.getRetExp().parentStmt() = this;
+	eq ImplementsExp.succ() = new SimpleSet<CFGNode>(getExp());
+	eq ImplementsExp.getExp().following() = new SimpleSet<CFGNode>(getInterfaceTypeUse());
 
-	eq ThrowStmt.getReason().parentStmt() = this;
+	// TODO: LetExp
 
-	inh Stmt VarDecl.parentStmt();
-	eq VarDeclStmt.getVarDecl().parentStmt() = this;
+	eq ListLiteral.succ() = hasPureExp()
+		? new SimpleSet<CFGNode>(getPureExp(0))
+		: following();
+	eq ListLiteral.getPureExp(int i).following() = i + 1 < getNumPureExp()
+		? new SimpleSet<CFGNode>(getPureExp(i + 1))
+		: following();
 
-	eq WhileStmt.getCondition().parentStmt() = this;
+	// TODO: ParFnApp
+
+	eq Unary.succ() = new SimpleSet<CFGNode>(getOperand());
 }

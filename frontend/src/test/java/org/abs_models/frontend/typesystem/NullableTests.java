@@ -65,13 +65,13 @@ public class NullableTests extends FrontendTest {
 
     @Test
     public void testMethodSecondCall() {
-        MethodImpl met = getMethod("interface I { Unit m(I i); } class C implements I { Unit m(I i) { i.m(this); } }");
+        MethodImpl met = getMethod("interface I { Unit m(I i); } class C implements I { Unit m(I i) { i.m(this); skip; } }");
 
         ParamDecl p = met.getMethodSig().getParam(0);
         Block b = met.getBlock();
 
         SimpleSet<VarOrFieldDecl> nonNull1 = b.getStmt(0).nonNull_in();
-        SimpleSet<VarOrFieldDecl> nonNull2 = b.getStmt(0).nonNull_out();
+        SimpleSet<VarOrFieldDecl> nonNull2 = b.getStmt(1).nonNull_in();
         assertTrue(nonNull1.isEmpty());
         assertTrue(nonNull2.contains(p));
     }
@@ -99,6 +99,7 @@ public class NullableTests extends FrontendTest {
         IfStmt ifStmt = (IfStmt) b.getStmt(0);
 
         SimpleSet<VarOrFieldDecl> nonNull = ifStmt.getThen().nonNull_in();
+        System.out.println(((IfStmt) b.getStmt(0)).getThen().pred());
         assertTrue(nonNull.contains(p));
     }
 
