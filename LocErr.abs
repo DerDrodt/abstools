@@ -1,0 +1,20 @@
+module LocErr;
+
+interface I {
+    Unit m([Near] I i);
+}
+
+class C implements I {
+    Unit m([Near] I i) {
+        
+    }
+}
+
+{
+    I i = null;
+    while (True) {
+        I j = new C();
+        j.m(i);
+        i = j;
+    }
+}

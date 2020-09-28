@@ -308,6 +308,30 @@ public class LocationTypeTests extends FrontendTest {
     public void overrideParameterFailed() {
         assertInferFails("interface I { I m([Somewhere] I i); } class C implements I { I m([Near] I i) { return null; } } { }");
     }
+
+    @Test
+    public void testWhileParFar() {
+        assertInferOk("module LocErr;\n" +
+            "\n" +
+            "interface I {\n" +
+            "    Unit m([Near] I i);\n" +
+            "}\n" +
+            "\n" +
+            "class C implements I {\n" +
+            "    Unit m([Near] I i) {\n" +
+            "        \n" +
+            "    }\n" +
+            "}\n" +
+            "\n" +
+            "{\n" +
+            "    I i = null;\n" +
+            "    while (True) {\n" +
+            "        I j = new C();\n" +
+            "        j.m(j);\n" +
+            "        i = j;\n" +
+            "    }\n" +
+            "}");
+    }
     
     @Test
     public void testInferenceRetypeChecking() {
