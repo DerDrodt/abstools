@@ -325,12 +325,17 @@ public class LocationTypeTests extends FrontendTest {
             "\n" +
             "{\n" +
             "    I i = null;\n" +
-            "    while (True) {\n" +
+            "    //while (True) {\n" +
             "        I j = new C();\n" +
             "        j.m(j);\n" +
             "        i = j;\n" +
-            "    }\n" +
+            "    //}\n" +
             "}");
+    }
+
+    @Test
+    public void test() {
+        assertInferOk("module LocErr; interface I { Unit m([Near] I i); } class C implements I { Unit m([Near] I i) {} } { [Far] I i = new C(); i!m(i); }");
     }
     
     @Test
